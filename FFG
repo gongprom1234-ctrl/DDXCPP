@@ -1,0 +1,246 @@
+-- โหลด Rayfield UI Library
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "MM2 สคริปต์ภาษาไทย 🔪✨",
+   LoadingTitle = "กำลังโหลดระบบ MM2...",
+   LoadingSubtitle = "เมนูภาษาไทยครบวงจร",
+   ConfigurationSaving = { Enabled = false },
+   Discord = { Enabled = false },
+   KeySystem = false
+})
+
+-- ตัวแปรบริการ Roblox
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+
+-- ตัวแปรการตั้งค่า
+local ESPEnabled = false
+local HitboxEnabled = false
+local HitboxSize = 10
+local WalkSpeedValue = 16
+local JumpPowerValue = 50
+
+-- ฟังก์ชันตรวจสอบบทบาทและคืนค่า (ชื่อภาษาไทย, สี)
+local function GetRoleInfo(player)
+    local roleName = "คนดี"
+    local color = Color3.fromRGB(0, 255, 0) -- สีเขียว
+    
+    local backpack = player:FindFirstChild("Backpack")
+    local character = player.Character
+    
+    local hasGun = (backpack and backpack:FindFirstChild("Gun")) or (character and character:FindFirstChild("Gun"))
+    local hasKnife = (backpack and backpack:FindFirstChild("Knife")) or (character and character:FindFirstChild("Knife"))
+    
+    if hasKnife then
+        roleName = "ไอชั่ว"
+        color = Color3.fromRGB(255, 0, 0) -- สีแดง
+    elseif hasGun then
+        roleName = "ฮีโร่"
+        color = Color3.fromRGB(0, 191, 255) -- สีฟ้า
+    end
+    
+    return roleName, color
+end
+
+-- ==================== ระบบ ESP ====================
+local espBoxes = {}
+
+local function CreateESP(player)
+    if player == LocalPlayer then return end
+    
+    local box = Drawing.new("Square")
+    box.Thickness = 2
+    box.Filled = false
+    box.Transparent = 1
+    box.Visible = false
+    
+    local text = Drawing.new("Text")
+    text.Size = 16
+    text.Center = true
+    text.Outline = true
+    text.Visible = false
+    
+    espBoxes[player] = {Box = box, Text = text}
+end
+
+for _, p in pairs(Players:GetPlayers()) do CreateESP(p) end
+Players.PlayerAdded:Connect(CreateESP)
+Players.PlayerRemoving:Connect(function(p)
+    if espBoxes[p] then
+        espBoxes[p].Box:Remove()
+        espBoxes[p].Text:Remove()
+        espBoxes[p] = nil
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    for player, drawings in pairs(espBoxes) do
+        if ESPEnabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local hrp = player.Character.HumanoidRootPart
+            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            
+            if onScreen then
+                local roleName, roleColor = GetRoleInfo(player)
+                
+                local scale = 1000 / pos.Z
+                drawings.Box.Size = Vector2.new(20 * scale / 10, 35 * scale / 10)
+                drawings.Box.Position = Vector2.new(pos.X - drawings.Box.Size.X / 2, pos.Y - drawings.Box.Size.Y / 2)
+                drawings.Box.Color = roleColor
+                drawings.Box.Visible = true
+                
+                drawings.Text.Position = Vector2.new(pos.X, pos.Y - drawings.Box.Size.Y / 2 - 18)
+                drawings.Text.Text = player.DisplayName .. " [" .. roleName .. "]"
+                drawings.Text.Color = roleColor
+                drawings.Text.Visible = true
+            else
+                drawings.Box.Visible = false
+                drawings.Text.Visible = false
+            end
+        else
+            drawings.Box.Visible = false
+            drawings.Text.Visible = false
+        end
+    end
+end)
+
+-- ==================== ระบบ HITBOX ====================
+RunService.RenderStepped:Connect(function()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = player.Character.HumanoidRootPart
+            if HitboxEnabled then
+                hrp.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
+                hrp.Transparency = 0.7
+                hrp.BrickColor = BrickColor.new("Really red")
+                hrp.Material = Enum.Material.Neon
+                hrp.CanCollide = false
+            else
+                hrp.Size = Vector3.new(2, 2, 1)
+                hrp.Transparency = 1
+                hrp.CanCollide = true
+            end
+        end
+    end
+end)
+
+-- ==================== ระบบ SPEED & JUMP ====================
+RunService.RenderStepped:Connect(function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = WalkSpeedValue
+    end
+end)
+
+-- ==================== หน้าเมนู Rayfield GUI ====================
+
+local MainTab = Window:CreateTab("ฟังก์ชันหลัก 🗡️", 4483362458)
+local PlayerTab = Window:CreateTab("ตั้งค่าตัวละคร 🏃", 4483362458)
+
+-- 1. ฟังก์ชัน Kill All (เฉพาะ Murderer)
+MainTab:CreateButton({
+   Name = "Kill All (ดึงทุกคนมาฆ่า - เฉพาะตอนเป็น Murderer)",
+   Callback = function()
+      local character = LocalPlayer.Character
+      if not character then return end
+      
+      local backpack = LocalPlayer:FindFirstChild("Backpack")
+      local knife = (character:FindFirstChild("Knife")) or (backpack and backpack:FindFirstChild("Knife"))
+      
+      if not knife then
+         Rayfield:Notify({
+            Title = "ข้อผิดพลาด!",
+            Content = "คุณไม่ได้เป็น Murderer (ไม่มีมีด)",
+            Duration = 3,
+            Image = 4483362458,
+         })
+         return
+      end
+      
+      -- ถือมีดออกมา
+      if knife.Parent == backpack then
+         knife.Parent = character
+      end
+      
+      -- ดึงผู้เล่นทุกคนมาที่ด้านหน้าและทำการโจมตี
+      local myHRP = character:FindFirstChild("HumanoidRootPart")
+      if myHRP then
+         for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+               local targetHRP = player.Character.HumanoidRootPart
+               -- วาร์ปเป้าหมายมาข้างหน้า
+               targetHRP.CFrame = myHRP.CFrame * CFrame.new(0, 0, -2)
+               
+               -- สั่งการฟันมีด
+               task.spawn(function()
+                  if knife:FindFirstChild("Stab") then
+                     knife.Stab:FireServer()
+                  elseif knife:FindFirstChild("Slash") then
+                     knife.Slash:FireServer()
+                  end
+               end)
+            end
+         end
+      end
+      
+      Rayfield:Notify({
+         Title = "สำเร็จ!",
+         Content = "ดึงผู้เล่นทุกคนมาฆ่าเรียบร้อยแล้ว",
+         Duration = 3,
+         Image = 4483362458,
+      })
+   end,
+})
+
+-- 2. ฟังก์ชัน ESP (แบ่งบทบาท สี + คำเรียก)
+MainTab:CreateToggle({
+   Name = "มองทะลุแสดงบทบาท (ESP)",
+   CurrentValue = false,
+   Flag = "ESPToggle",
+   Callback = function(Value)
+      ESPEnabled = Value
+   end,
+})
+
+-- 3. ฟังก์ชัน Hitbox ขยายขนาดตัว
+MainTab:CreateToggle({
+   Name = "เปิดใช้งาน Hitbox (ขยายร่างคนอื่น)",
+   CurrentValue = false,
+   Flag = "HitboxToggle",
+   Callback = function(Value)
+      HitboxEnabled = Value
+   end,
+})
+
+MainTab:CreateSlider({
+   Name = "ขนาด Hitbox",
+   Range = {2, 50},
+   Increment = 1,
+   Suffix = " หน่วย",
+   CurrentValue = 10,
+   Flag = "HitboxSizeSlider",
+   Callback = function(Value)
+      HitboxSize = Value
+   end,
+})
+
+-- 4. ฟังก์ชัน Speed เพิ่มความเร็วในการเดิน
+PlayerTab:CreateSlider({
+   Name = "ความเร็วการเคลื่อนที่ (Speed)",
+   Range = {16, 200},
+   Increment = 1,
+   Suffix = " Speed",
+   CurrentValue = 16,
+   Flag = "SpeedSlider",
+   Callback = function(Value)
+      WalkSpeedValue = Value
+   end,
+})
+
+Rayfield:Notify({
+   Title = "สคริปต์พร้อมใช้งาน!",
+   Content = "โหลดเมนูภาษาไทย MM2 เรียบร้อยแล้ว",
+   Duration = 5,
+   Image = 4483362458,
+})
